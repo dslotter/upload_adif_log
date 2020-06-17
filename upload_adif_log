@@ -18,6 +18,8 @@ CLUBLOG_EMAIL="<YOUR_CLUBLOG_EMAIL>"
 CLUBLOG_PSWD="<YOUR_CLUBLOG_PASSWORD"
 CLUBLOG_API="<YOUR_CLUBLOG_API_KEY>"
 
+ADIF_FILE="${HOME}/.local/share/WSJT-X/wsjtx_log.adi"
+
 #
 # Read https://clublog.freshdesk.com/support/solutions/articles/54910-api-keys
 # on how to get a ClubLog API Key
@@ -38,19 +40,24 @@ if [ ! -x /usr/bin/notify-send ]; then
   exit 1
 fi
 
-TMPFILE=$(mktemp /tmp/wsjtx_log_delta_.XXXXXX.ADIF)
+if [ ! -f "${ADIF_FILE}" ]; then
+  echo "Cannot locate ADIF Logfile: ${ADIF_FILE}."
+  exit 1
+fi
+
+TMPFILE=$(mktemp /tmp/adif_log_delta_.XXXXXX.ADIF)
 
 trap 'rm ${TMPFILE}' SIGTERM
 
 # Get current highwater mark
-WSJTX_LOG_NEW_HIGHWATER=$(wc -l ${HOME}/.local/share/WSJT-X/wsjtx_log.adi | cut -d ' ' -f1 )
+ADIF_LOG_NEW_HIGHWATER=$(wc -l ${ADIF_FILE} | cut -d ' ' -f1 )
 
 # Get prior highwater mark
-WSJTX_LOG_HIGHWATER=$(cat ${HOME}/.wsjtx_log_old_highwater)
+ADIF_LOG_HIGHWATER=$(cat ${HOME}/.adif_log_old_highwater)
 
-NEW_LOG_LINES=$(( ${WSJTX_LOG_NEW_HIGHWATER} - ${WSJTX_LOG_HIGHWATER} ))
+NEW_LOG_LINES=$(( ${ADIF_LOG_NEW_HIGHWATER} - ${ADIF_LOG_HIGHWATER} ))
 if (( ${NEW_LOG_LINES} > 0 )); then
-  tail -n ${NEW_LOG_LINES} ${HOME}/.local/share/WSJT-X/wsjtx_log.adi > ${TMPFILE}
+  tail -n ${NEW_LOG_LINES} ${ADIF_FILE} > ${TMPFILE}
 
   # Upload to eQSL.cc
   echo -e "\nUploading to eQSL..."
@@ -66,7 +73,7 @@ if (( ${NEW_LOG_LINES} > 0 )); then
     espeak -s 150 -v en-us "Logbook of the world upload of, ${NEW_LOG_LINES}, cue-soes successful.!" 2> /dev/null &
     notify-send -i /usr/share/pixmaps/trustedqsl.png -t 60000 "LotW upload of ${NEW_LOG_LINES} QSO(s) successful" &
     # Write out new highwater mark:
-    echo ${WSJTX_LOG_NEW_HIGHWATER} > ${HOME}/.wsjtx_log_old_highwater
+    echo ${ADIF_LOG_NEW_HIGHWATER} > ${HOME}/.adif_log_old_highwater
     rm "$TMPFILE"
   fi
   else
